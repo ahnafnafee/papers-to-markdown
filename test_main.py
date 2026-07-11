@@ -4,7 +4,7 @@ import main
 
 
 def test_math_delimiters() -> None:
-    f = main.normalize_math_delimiters
+    f = main.normalize_ocr_markdown
     assert f(r"\[E = mc^2\]") == "$$E = mc^2$$"
     assert f(r"see \(x + y\) inline") == "see $x + y$ inline"
     # display math may span lines
@@ -14,12 +14,25 @@ def test_math_delimiters() -> None:
         f(r"\[\begin{pmatrix} a \\ b \end{pmatrix}\]")
         == r"$$\begin{pmatrix} a \\ b \end{pmatrix}$$"
     )
-    # escaped literals are not delimiters
-    assert f(r"array\\[3\\]") == r"array\\[3\\]"
+    # pdf-craft double-escapes equation-asset bodies — those get collapsed
+    assert (
+        f(r"\[F(l,m) = \\sum_{n = 1}^{N} a_{mn} \\cdot e^{-i2\\pi}\]")
+        == r"$$F(l,m) = \sum_{n = 1}^{N} a_{mn} \cdot e^{-i2\pi}$$"
+    )
+    # escaped literals are not delimiters; prose unescaping restores \[
+    assert f(r"array\\[3\\]") == r"array\[3\]"
     # dollar math passes through untouched
     assert f(r"$a \\ b$ and $$c d$$") == r"$a \\ b$ and $$c d$$"
-    # inline math never spans lines
+    # inline math never spans lines (and prose has no pairs to collapse here)
     assert f("\\(a\nb\\)") == "\\(a\nb\\)"
+
+
+def test_prose_unescaping() -> None:
+    f = main.normalize_ocr_markdown
+    # pdf-craft doubles the OCR's own markdown escapes in prose
+    assert f(r"Liu Shilong\\* Shandong University") == r"Liu Shilong\* Shandong University"
+    # prose collapse never reaches into dollar-math spans
+    assert f(r"$$a \\ b$$ and \\* prose") == r"$$a \\ b$$ and \* prose"
 
 
 ACM_SAMPLE = """Latest updates: https://dl.acm.org/doi/10.1145/3746059.3747603

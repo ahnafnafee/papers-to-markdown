@@ -227,21 +227,57 @@ def pick_pdfs(root: Path) -> list[Path]:
     )
 
 
-def normalize_math_delimiters(content: str) -> str:
-    r"""Rewrite \(...\) as $...$ and \[...\] as $$...$$ so math renders in plain
-    Markdown viewers. Only the delimiters change: formula bodies (including \\
-    row breaks) pass through verbatim, and the lookbehinds skip escaped
-    literals like \\[. A blanket string replace here corrupts formulas."""
-    content = re.sub(
-        r"(?<!\\)\\\[(.{0,4000}?)(?<!\\)\\\]", r"$$\1$$", content, flags=re.DOTALL
-    )
-    content = re.sub(r"(?<!\\)\\\((.{0,800}?)(?<!\\)\\\)", r"$\1$", content)
-    return content
+# Math spans first ($$ before $), then \[...\]/\(...\) delimiters whose
+# lookbehinds skip escaped literals like \\[.
+_MD_SPAN = re.compile(
+    r"(?P<dollar>\$\$.{0,4000}?\$\$|\$[^$\n]{0,800}\$)"
+    r"|(?<!\\)\\\[(?P<bracket>.{0,4000}?)(?<!\\)\\\]"
+    r"|(?<!\\)\\\((?P<paren>[^\n]{0,800}?)(?<!\\)\\\)",
+    re.DOTALL,
+)
+
+
+def _collapse_escaped_backslashes(text: str) -> str:
+    return text.replace("\\\\", "\\")
+
+
+def _unescape_equation(body: str) -> str:
+    # pdf-craft renders equation-asset bodies through its plain-text escaping,
+    # which doubles every backslash (\\sum, \\frac). Collapse only when every
+    # backslash run is even-length — a formula that truly contains \\ row
+    # breaks also contains odd runs like \begin, and must pass through as-is.
+    runs = re.findall(r"\\+", body)
+    if runs and all(len(run) % 2 == 0 for run in runs):
+        return _collapse_escaped_backslashes(body)
+    return body
+
+
+def normalize_ocr_markdown(content: str) -> str:
+    r"""Undo pdf-craft's markdown over-escaping and normalize math delimiters.
+
+    Prose backslashes come out doubled (\\* for a footnote asterisk) because the
+    OCR already emits markdown-escaped text — collapse them. \[...\] becomes
+    $$...$$ (un-double-escaping the body when applicable) and \(...\) becomes
+    $...$ so math renders in plain Markdown viewers. Existing $/$$ spans pass
+    through verbatim. A blanket string replace here corrupts formulas."""
+    parts: list[str] = []
+    last = 0
+    for match in _MD_SPAN.finditer(content):
+        parts.append(_collapse_escaped_backslashes(content[last : match.start()]))
+        if match.group("dollar") is not None:
+            parts.append(match.group())
+        elif match.group("bracket") is not None:
+            parts.append("$$" + _unescape_equation(match.group("bracket")) + "$$")
+        else:
+            parts.append("$" + match.group("paren") + "$")
+        last = match.end()
+    parts.append(_collapse_escaped_backslashes(content[last:]))
+    return "".join(parts)
 
 
 def postprocess_markdown(content: str, venue: str) -> tuple[str, list[str]]:
     """Return (cleaned markdown, applied venue ids)."""
-    content = normalize_math_delimiters(content)
+    content = normalize_ocr_markdown(content)
     # OCR hyphenation artifact: "Processing- based" -> "Processing-based".
     # \w on both sides keeps list bullets ("- item") and " - " dashes intact;
     # the lookahead keeps runs like "Whac- A- Mole" fixable in one pass.
