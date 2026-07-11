@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert all top-level PDFs to Markdown or EPUB with pdf-craft.
+"""Convert every PDF in the input directory (papers/) to Markdown or EPUB.
 
 Markdown output is post-processed: LaTeX delimiters are normalized to $/$$,
 OCR hyphenation artifacts are repaired, and publisher boilerplate is stripped
@@ -112,19 +112,19 @@ VENUES: dict[str, dict] = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Convert all top-level PDFs to Markdown or EPUB files."
+        description="Convert every PDF in the input directory to Markdown or EPUB files."
     )
     parser.add_argument(
         "--root",
         type=Path,
-        default=Path("."),
-        help="Directory to scan for top-level PDFs (default: current directory).",
+        default=Path("papers"),
+        help="Directory to scan for PDFs (default: papers).",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="Directory for generated files (default: markdown/ or epubs/ by format).",
+        help="Directory for generated files (default: output/markdown or output/epubs by format).",
     )
     parser.add_argument(
         "--format",
@@ -206,8 +206,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def set_writable_cache_env(root: Path) -> None:
-    cache_root = root / ".cache"
+def set_writable_cache_env() -> None:
+    # Anchored to the working directory, not the PDF input directory.
+    cache_root = Path(".cache").resolve()
     hf_root = cache_root / "huggingface"
     mpl_root = cache_root / "matplotlib"
     cache_root.mkdir(parents=True, exist_ok=True)
@@ -328,13 +329,17 @@ def convert_to_markdown(
 def main() -> int:
     args = parse_args()
     root = args.root.resolve()
+    if not root.is_dir():
+        print(f"PDF input directory not found: {root}")
+        return 1
     output_dir = (
-        args.output_dir or Path("epubs" if args.format == "epub" else "markdown")
+        args.output_dir
+        or Path("output/epubs" if args.format == "epub" else "output/markdown")
     ).resolve()
     models_cache = args.models_cache_path.resolve()
     analysis_root = args.analysis_root.resolve()
 
-    set_writable_cache_env(root)
+    set_writable_cache_env()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     models_cache.mkdir(parents=True, exist_ok=True)
@@ -342,7 +347,7 @@ def main() -> int:
 
     pdfs = pick_pdfs(root)
     if not pdfs:
-        print(f"No PDFs found in top-level directory: {root}")
+        print(f"No PDFs found in {root} — drop your PDFs there and rerun.")
         return 1
 
     print("Selected PDFs:")

@@ -11,7 +11,7 @@ Convert academic papers from PDF to Markdown or EPUB format with AI-powered OCR,
 - **Smart Table Extraction**: Convert complex tables to HTML or image clipping
 - **Multi-Language OCR**: Support for English and Chinese documents
 - **Configurable OCR Models**: Choose from tiny to gundam-sized models based on your accuracy needs
-- **Batch Processing**: Processes every top-level PDF, skips already-converted files, and keeps going if one PDF fails
+- **Batch Processing**: Processes every PDF in `papers/`, skips already-converted files, and keeps going if one PDF fails
 - **GPU Acceleration**: Leverages PyTorch and CUDA for fast processing
 
 ## 📋 Requirements
@@ -49,7 +49,7 @@ source .venv/bin/activate
 
 ### Basic Markdown Conversion
 
-Drop PDFs in the project root and run — Markdown is the default format, output goes to `markdown/`:
+Drop PDFs into `papers/` and run — Markdown is the default format, output goes to `output/markdown/`:
 
 ```bash
 uv run main.py
@@ -74,9 +74,9 @@ uv run main.py --venue none    # keep the raw OCR output
 
 ```bash
 uv run main.py \
-  --root . \
+  --root papers \
   --format markdown \
-  --output-dir output \
+  --output-dir output/markdown \
   --ocr-size base \
   --venue auto \
   --no-footnotes \
@@ -87,8 +87,8 @@ uv run main.py \
 
 | Option                          | Values                                                | Default              | Description                                     |
 | ------------------------------- | ----------------------------------------------------- | -------------------- | ----------------------------------------------- |
-| `--root`                        | Path                                                  | `.`                  | Directory containing PDF files                  |
-| `--output-dir`                  | Path                                                  | `markdown` / `epubs` | Output directory (picked by format)             |
+| `--root`                        | Path                                                  | `papers`             | Directory containing PDF files                  |
+| `--output-dir`                  | Path                                                  | `output/markdown` / `output/epubs` | Output directory (picked by format) |
 | `--format`                      | `markdown`, `epub`                                    | `markdown`           | Output format                                   |
 | `--venue`                       | `auto`, `none`, or a venue key (see below)            | `auto`               | Publisher boilerplate stripping (Markdown only) |
 | `--ocr-size`                    | `tiny`, `small`, `base`, `large`, `gundam`            | `small`              | OCR model size (larger = more accurate)         |
@@ -130,13 +130,15 @@ papers-to-markdown/
 ├── test_main.py           # Self-check for the post-processing rules
 ├── pyproject.toml         # Project dependencies (UV)
 ├── README.md              # This file
-├── .gitignore             # Git ignore rules
+├── papers/                # INPUT: drop your PDFs here
+├── output/                # OUTPUT: generated files (gitignored)
+│   ├── markdown/          # Converted Markdown
+│   │   └── assets/        # Extracted figures (hash-named, shared across papers)
+│   └── epubs/             # Converted EPUBs
 ├── .venv/                 # Virtual environment
 ├── .cache/                # HuggingFace and matplotlib cache
 ├── .pdf_craft_models/     # Cached OCR models
-├── .pdf_craft_work/       # Temporary analysis files
-└── markdown/              # Output directory for Markdown files
-    └── assets/            # Extracted figures (hash-named, shared across papers)
+└── .pdf_craft_work/       # Temporary analysis files
 ```
 
 ## 🤝 Contributing

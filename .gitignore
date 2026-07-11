@@ -49,8 +49,7 @@ uv.lock
 .DS_Store
 
 # Output directories
-epubs/
-markdown/
+output/
 
 # Test and Coverage
 htmlcov/
@@ -78,5 +77,5 @@ dmypy.json
 .pytype/
 .pyre/
 
-# PDFs (optional - uncomment if you don't want to track PDFs)
-# *.pdf
+# Input PDFs (optional - uncomment if you don't want to track papers)
+# papers/*.pdf
