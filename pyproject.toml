@@ -1,7 +1,7 @@
 [project]
 name = "papers"
 version = "0.1.0"
-description = "Add your description here"
+description = "Convert academic-paper PDFs to Markdown or EPUB with venue-aware boilerplate cleanup"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
