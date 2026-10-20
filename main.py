@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert every PDF in the input directory (papers/) to Markdown or EPUB.
+"""Convert PDFs to Markdown, EPUB, or a matched PDF/EPUB reading bundle.
 
 Markdown output is post-processed: LaTeX delimiters are normalized to $/$$,
 OCR hyphenation artifacts are repaired, and publisher boilerplate is stripped
@@ -128,7 +128,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--format",
-        choices=["markdown", "epub"],
+        choices=["markdown", "epub", "pdf", "reading"],
         default="markdown",
         help="Output format (default: markdown).",
     )
@@ -203,6 +203,20 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only print which files would be converted.",
     )
+    parser.add_argument("--files", type=Path, nargs="+", help="Select specific PDF files.")
+    parser.add_argument("--profile", choices=["verdana-reading"],
+                        help="Use the reading pipeline for EPUB output.")
+    parser.add_argument("--recursive", action="store_true", help="Include subfolders in reading mode.")
+    parser.add_argument("--exclude", action="append", default=[], help="Reading-mode exclusion glob or folder name.")
+    parser.add_argument("--font-size", type=float, default=13, help="Reading body size in TeX points.")
+    parser.add_argument("--line-spacing", type=float, default=20, help="Reading baseline spacing in TeX points.")
+    parser.add_argument("--paragraph-spacing", type=float, default=10)
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto")
+    parser.add_argument("--ocr", choices=["auto", "never", "always"], default="auto")
+    parser.add_argument("--reextract", action="store_true", help="Rebuild the reading extraction cache.")
+    parser.add_argument("--workers", type=int, default=1, help="Parallel CPU exporters in reading mode (1-16).")
+    parser.add_argument("--send-to-kindle", action="store_true", help="Send EPUB output to your Kindle library after conversion.")
+    parser.add_argument("--kindle-state-dir", type=Path, help="Use a separate local Kindle sign-in profile.")
     return parser.parse_args()
 
 
@@ -364,8 +378,40 @@ def convert_to_markdown(
 
 def main() -> int:
     args = parse_args()
+    if args.send_to_kindle and args.format not in {"epub", "reading"}:
+        print("--send-to-kindle needs epub or reading output.")
+        return 1
+    if args.format in {"reading", "pdf"} or args.profile:
+        if args.format == "markdown":
+            print("The reading profile supports pdf, epub, and reading output.")
+            return 1
+        import shutil
+        import subprocess
+
+        uv = shutil.which("uv")
+        if not uv:
+            print("Reading mode needs uv to run its isolated environment.")
+            return 1
+        command = [uv, "run", "--script", str(Path(__file__).with_name("read.py")),
+                   *[str(p) for p in (args.files or [args.root])], "--format", args.format,
+                   "--font-size", str(args.font_size), "--line-spacing", str(args.line_spacing),
+                   "--paragraph-spacing", str(args.paragraph_spacing), "--device", args.device,
+                   "--ocr", args.ocr]
+        command.extend(["--workers", str(args.workers)])
+        if args.output_dir:
+            command.extend(["--output-dir", str(args.output_dir)])
+        for flag in ("force", "dry_run", "recursive", "reextract"):
+            if getattr(args, flag):
+                command.append("--" + flag.replace("_", "-"))
+        for pattern in args.exclude:
+            command.extend(["--exclude", pattern])
+        if args.send_to_kindle:
+            command.append("--send-to-kindle")
+        if args.kindle_state_dir:
+            command.extend(["--kindle-state-dir", str(args.kindle_state_dir)])
+        return subprocess.run(command, check=False).returncode
     root = args.root.resolve()
-    if not root.is_dir():
+    if not args.files and not root.is_dir():
         print(f"PDF input directory not found: {root}")
         return 1
     output_dir = (
@@ -381,7 +427,7 @@ def main() -> int:
     models_cache.mkdir(parents=True, exist_ok=True)
     analysis_root.mkdir(parents=True, exist_ok=True)
 
-    pdfs = pick_pdfs(root)
+    pdfs = args.files or pick_pdfs(root)
     if not pdfs:
         print(f"No PDFs found in {root} — drop your PDFs there and rerun.")
         return 1
@@ -395,10 +441,13 @@ def main() -> int:
 
     suffix = ".epub" if args.format == "epub" else ".md"
     failures = 0
+    delivery_paths = []
     for pdf in pdfs:
         output_path = output_dir / (pdf.stem + suffix)
         if output_path.exists() and not args.force:
             print(f"Skipping (output exists, use --force): {output_path.name}")
+            if args.send_to_kindle:
+                delivery_paths.append(output_path)
             continue
 
         analysing_path = analysis_root / pdf.stem
@@ -414,7 +463,18 @@ def main() -> int:
             print(f"FAILED: {pdf.name}: {error}")
             continue
         print(f"Created: {output_path}")
+        if args.send_to_kindle:
+            delivery_paths.append(output_path)
 
+    if delivery_paths:
+        from kindle_delivery.launch import send_epubs
+
+        try:
+            if send_epubs(delivery_paths, state_dir=args.kindle_state_dir):
+                failures += 1
+        except (OSError, RuntimeError) as error:
+            failures += 1
+            print(f"Kindle: {error}")
     if failures:
         print(f"Done with {failures} failure(s) out of {len(pdfs)} PDF(s).")
         return 1

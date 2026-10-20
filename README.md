@@ -1,164 +1,175 @@
-# Papers to Markdown - Academic PDF Converter
+<a id="readme-top"></a>
 
-Convert academic papers from PDF to Markdown or EPUB format with AI-powered OCR, LaTeX support, and venue-aware cleanup.
+<div align="center">
 
-## 🚀 Features
+# Papers to Markdown
 
-- **AI-Powered PDF Conversion**: Transform research papers and academic PDFs into clean Markdown or EPUB formats
-- **Venue-Aware Cleanup**: Auto-detects the publisher (ACM, IEEE, arXiv, Springer, Elsevier, NeurIPS, ICML, ICLR, ACL, CVF) and strips its boilerplate — copyright blocks, Xplore footers, digital-library preambles, page headers
-- **Markdown Post-Processing**: Normalizes LaTeX delimiters to `$...$` / `$$...$$` without corrupting formulas, and repairs OCR hyphenation artifacts (`Processing- based` → `Processing-based`)
-- **LaTeX Equation Support**: Preserve mathematical equations with multiple rendering options (MathML, SVG, or clipping)
-- **Smart Table Extraction**: Convert complex tables to HTML or image clipping
-- **Multi-Language OCR**: Support for English and Chinese documents
-- **Configurable OCR Models**: Choose from tiny to gundam-sized models based on your accuracy needs
-- **Batch Processing**: Processes every PDF in `papers/`, skips already-converted files, and keeps going if one PDF fails
-- **GPU Acceleration**: Leverages PyTorch and CUDA for fast processing
+Convert PDFs into spacious **Verdana reading PDFs**, **Kindle EPUBs**, and **Markdown**.<br />Keep figures, equations, references, and a route back to the original pages.
 
-## 📋 Requirements
+[Quick start](#quick-start) · [Reading guide](docs/reading-guide.md) · [Batch conversion](docs/batch-guide.md) · [Send to Kindle](#send-to-kindle) · [Report an issue](https://github.com/ahnafnafee/papers-to-markdown/issues)
 
-- Python 3.13 or higher
-- CUDA-compatible GPU (recommended for faster processing)
-- UV package manager
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/) [![MIT license](https://img.shields.io/badge/License-MIT-202020?style=flat-square)](LICENSE)
 
-## 🔧 Installation
+<br />
 
-1. Clone this repository:
+<img src="docs/assets/reading-overview.png" alt="Illustration of a dense two-column source paper becoming a spacious single-column reading PDF and a Kindle EPUB with a cover and contents." width="100%" />
 
-```bash
+<sub>Layout illustration with synthetic text. Kindle controls can change the EPUB's appearance.</sub>
+
+</div>
+
+<br />
+
+<details>
+<summary><strong>Explore the project</strong></summary>
+
+- [What you can make](#what-you-can-make)
+- [Quick start](#quick-start)
+- [The reading preset](#the-reading-preset)
+- [Convert a collection](#convert-a-collection)
+- [Send to Kindle](#send-to-kindle)
+- [Markdown and publisher cleanup](#markdown-and-publisher-cleanup)
+- [How conversion works](#how-conversion-works)
+- [Documentation and development](#documentation-and-development)
+- [License and acknowledgments](#license-and-acknowledgments)
+
+</details>
+
+## What you can make
+
+| Output | Built for |
+| :--- | :--- |
+| **Reading PDF** | A fixed Verdana layout with generous spacing, one column, bookmarks, and original-page markers. |
+| **Kindle EPUB** | Reflowable text, an individual portrait cover, visible contents, nested navigation, and embedded document fonts. |
+| **Markdown** | Editable notes with figure assets, LaTeX delimiter repair, and publisher boilerplate cleanup. |
+| **Reading library** | A searchable local catalogue with PDF and EPUB links, duplicate aliases, and notes for flagged pages. |
+
+Figures, tables, and display equations retain their source appearance. When a character cannot be reproduced reliably, its original rendering is preserved and the conversion report flags the passage for comparison.
+
+## Quick start
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), Python 3.13, and [TeX Live](https://www.tug.org/texlive/) or [MiKTeX](https://miktex.org/) with `xelatex` on your path. Reading mode uses an installed copy of Verdana, including its regular, bold, italic, and bold italic faces. Windows is the validated platform; see [font setup](docs/reading-guide.md#requirements) for other installations.
+
+```powershell
 git clone https://github.com/ahnafnafee/papers-to-markdown.git
 cd papers-to-markdown
+
+uv run --locked --script read.py "C:\Papers\example.pdf"
 ```
 
-2. Install dependencies using UV:
+The first conversion downloads the locked environment and layout models. Extraction runs locally. Each paper gets a folder under `output/pdf/` containing its reading PDF, EPUB, HTML preview, assets, and conversion report.
 
-```bash
+> [!TIP]
+> Use `--format epub` for EPUB output alone, or `--format pdf` for a reading PDF alone. EPUB-only output does not need XeLaTeX; installed Verdana is still required.
+
+## The reading preset
+
+The `verdana-reading` preset gives paragraphs a consistent measure and enough space to follow each line. Both reading outputs come from the same extracted document.
+
+| Setting | Default |
+| :--- | :--- |
+| Typeface | Verdana |
+| PDF body / baseline | 13 pt / 20 pt |
+| Paragraph gap | 10 pt, with no first-line indent |
+| Page | US Letter, single column, left aligned |
+| Margins | 1.05 in left/right; 0.90 in top; 0.85 in bottom |
+| EPUB | Corresponding relative spacing, embedded fonts, and linked contents |
+
+Adjust the type and spacing together:
+
+```powershell
+uv run --locked --script read.py "C:\Papers\example.pdf" --font-size 14 --line-spacing 22 --paragraph-spacing 11
+```
+
+EPUBs include a high-contrast cover using the paper's title and available authors, followed by a visible table of contents. Numeric citations and recovered footnotes link to their targets when the source provides an unambiguous match. On Kindle, select the publisher font when available; device settings can override document fonts and spacing.
+
+[Explore the reading guide →](docs/reading-guide.md)
+
+## Convert a collection
+
+```powershell
+uv run --locked --script read.py "C:\Papers" --workers 4
+```
+
+**Only PDFs directly inside the folder are selected by default.** Add `--recursive` to include subfolders, and use `--dry-run` to check the selection before conversion. Byte-identical files are converted once.
+
+One inference process shares work with isolated export processes. A bounded queue limits outstanding jobs, and per-paper receipts verify saved files before they are reused. Run the same command again to resume. In parallel mode, a stalled parser is stopped and retried with a different backend while other papers continue.
+
+For an inventoried collection, the library tools also publish `PDFs/`, `EPUBs/`, a searchable `START HERE.html`, and page-specific review notes to a separate destination.
+
+[Batch options, publication, and recovery →](docs/batch-guide.md)
+
+## Send to Kindle
+
+Sign in once in a dedicated local browser profile, then send an EPUB and inspect Amazon's processing status:
+
+```powershell
+uv run --locked --script kindle.py login
+uv run --locked --script kindle.py send "C:\Reading Copies\example.epub"
+uv run --locked --script kindle.py status
+```
+
+Windows opens installed Edge by default; `--browser chrome` selects Chrome. Sign-in stays outside the repository. Delivery receipts prevent repeat uploads of accepted files, and uncertain submissions require an explicit resend. Add `--send-to-kindle` to a reading conversion to send EPUBs that have no outstanding review flags.
+
+> [!NOTE]
+> The sender follows Amazon US's undocumented web upload flow, which can change. `IN_LIBRARY` confirms Amazon has processed a document; sync the Kindle to download it. Physical-device appearance still needs checking.
+
+[Sending guide and protocol notes →](docs/send-to-kindle.md)
+
+## Markdown and publisher cleanup
+
+The existing Markdown converter remains available through `main.py`:
+
+```powershell
 uv sync
+uv run main.py --files "C:\Papers\example.pdf"
+uv run main.py --root "C:\Papers" --venue ieee
 ```
 
-3. Activate the virtual environment:
+Markdown is the default and goes to `output/markdown/`. Venue detection covers ACM, IEEE, arXiv, Springer, Elsevier, NeurIPS, ICML, ICLR, ACL, and CVF. Use `--venue none` to keep publisher boilerplate. The original `pdf-craft` EPUB route remains available with `main.py --format epub`; choose `read.py` for the Verdana reading preset.
 
-```bash
-# Windows
-.venv\Scripts\activate
+[Markdown options and compatibility →](docs/markdown-guide.md)
 
-# Linux/Mac
-source .venv/bin/activate
+## How conversion works
+
+```text
+Source PDFs → local layout extraction → shared document + source regions
+                                          ├─ Verdana PDF
+                                          ├─ Kindle EPUB + HTML preview
+                                          └─ validation + review report
 ```
 
-## 💻 Usage
+Original prose is reflowed, and original PDFs stay in place. Extraction is cached separately from formatting, so changing the reading profile reuses the layout analysis. Source-page audits, output text checks, link checks, and file hashes help identify gaps; optional EPUBCheck adds formal EPUB validation.
 
-### Basic Markdown Conversion
+Reading and Markdown conversion use separate environments because their extraction libraries require different dependency versions. Their entry points manage that separation through uv.
 
-Drop PDFs into `papers/` and run — Markdown is the default format, output goes to `output/markdown/`:
+## Documentation and development
 
-```bash
-uv run main.py
+| Guide | Contents |
+| :--- | :--- |
+| [Reading copies](docs/reading-guide.md) | Fonts, spacing, OCR, metadata, output files, and review flags. |
+| [Batch libraries](docs/batch-guide.md) | Parallel conversion, checkpoints, inventory schema, publication, and recovery. |
+| [Kindle delivery](docs/send-to-kindle.md) | Sign-in, sending, duplicate protection, observed protocol, and validation limits. |
+| [Markdown conversion](docs/markdown-guide.md) | Existing converter options, publisher rules, and EPUB compatibility. |
+| [Development](docs/development.md) | Project structure and local verification. |
+
+Run the local checks:
+
+```powershell
+uv run --no-project --with playwright==1.64.0 python -m unittest discover -s tests -v
+uv run python test_main.py
 ```
 
-### EPUB Conversion
+Contributions should include focused checks for changed behavior and keep source papers, fonts, browser profiles, and generated libraries out of commits. Report conversion problems with the affected page numbers and a shareable source when possible.
 
-```bash
-uv run main.py --format epub
-```
+## License and acknowledgments
 
-### Venue Cleanup Control
+[MIT](LICENSE). Built on [Docling](https://github.com/docling-project/docling) for reading-mode extraction and [pdf-craft](https://github.com/oomol-lab/pdf-craft) for the existing Markdown and EPUB converter, with [XeTeX](https://www.tug.org/xetex/) for reading PDFs and [Playwright](https://playwright.dev/python/) for Kindle browser sessions.
 
-Boilerplate stripping is auto-detected by default. Force a specific venue or turn it off:
+Verdana is supplied by your font installation. Its font files are not distributed in this repository.
 
-```bash
-uv run main.py --venue ieee    # force IEEE cleanup rules
-uv run main.py --venue none    # keep the raw OCR output
-```
+<div align="right">
 
-### Advanced Options
+[Back to top ↑](#readme-top)
 
-```bash
-uv run main.py \
-  --root papers \
-  --format markdown \
-  --output-dir output/markdown \
-  --ocr-size base \
-  --venue auto \
-  --no-footnotes \
-  --force
-```
-
-## ⚙️ Configuration Options
-
-| Option                          | Values                                                | Default              | Description                                     |
-| ------------------------------- | ----------------------------------------------------- | -------------------- | ----------------------------------------------- |
-| `--root`                        | Path                                                  | `papers`             | Directory containing PDF files                  |
-| `--output-dir`                  | Path                                                  | `output/markdown` / `output/epubs` | Output directory (picked by format) |
-| `--format`                      | `markdown`, `epub`                                    | `markdown`           | Output format                                   |
-| `--venue`                       | `auto`, `none`, or a venue key (see below)            | `auto`               | Publisher boilerplate stripping (Markdown only) |
-| `--ocr-size`                    | `tiny`, `small`, `base`, `large`, `gundam`            | `small`              | OCR model size (larger = more accurate)         |
-| `--lang`                        | `en`, `zh`                                            | `en`                 | Document language (EPUB only)                   |
-| `--latex-render`                | `mathml`, `svg`, `clipping`                           | `svg`                | LaTeX equation rendering mode (EPUB only)       |
-| `--table-render`                | `html`, `clipping`                                    | `html`               | Table rendering mode (EPUB only)                |
-| `--cover` / `--no-cover`        | Flag                                                  | on                   | Include the cover page                          |
-| `--footnotes` / `--no-footnotes`| Flag                                                  | on                   | Extract footnotes and references                |
-| `--inline-latex` / `--no-inline-latex` | Flag                                          | on                   | Preserve inline LaTeX (EPUB only)               |
-| `--force`                       | Flag                                                  | off                  | Re-convert PDFs whose output already exists     |
-| `--models-cache-path`           | Path                                                  | `.pdf_craft_models`  | Model cache directory                           |
-| `--analysis-root`               | Path                                                  | `.pdf_craft_work`    | Work directory for analysis artifacts           |
-| `--dry-run`                     | Flag                                                  | off                  | Preview files without converting                |
-
-## 🏛️ Supported Venues
-
-Markdown output is scanned for publisher fingerprints; every venue that matches gets its boilerplate stripped. Use `--venue <key>` to force one, `--venue none` to disable.
-
-| Key        | Covers                                                                  |
-| ---------- | ----------------------------------------------------------------------- |
-| `acm`      | ACM Digital Library — CHI, UIST, CSCW, IMWUT, TOCHI, and other ACM venues |
-| `ieee`     | IEEE Xplore conferences and journals                                    |
-| `arxiv`    | arXiv preprints (margin stamp, "Preprint. Under review.")               |
-| `springer` | Springer / LNCS / Springer Nature journals                              |
-| `elsevier` | Elsevier / ScienceDirect journals                                       |
-| `neurips`  | NeurIPS proceedings footers                                             |
-| `icml`     | ICML / PMLR proceedings footers                                         |
-| `iclr`     | ICLR page headers ("Published as a conference paper at ICLR ...")       |
-| `acl`      | ACL Anthology — ACL, EMNLP, NAACL, and other ACL venues                  |
-| `cvf`      | CVF open access — CVPR, ICCV, WACV watermark notices                    |
-
-Adding a venue is a small edit: append an entry with a `detect` regex and `strip` patterns to the `VENUES` dict in `main.py`, and it automatically shows up as a `--venue` choice. Run `python test_main.py` to sanity-check the cleanup rules.
-
-## 📁 Project Structure
-
-```
-papers-to-markdown/
-├── main.py                # Main conversion script (pipeline + venue rules)
-├── test_main.py           # Self-check for the post-processing rules
-├── pyproject.toml         # Project dependencies (UV)
-├── README.md              # This file
-├── papers/                # INPUT: drop your PDFs here
-├── output/                # OUTPUT: generated files (gitignored)
-│   ├── markdown/          # Converted Markdown
-│   │   └── assets/        # Extracted figures (hash-named, shared across papers)
-│   └── epubs/             # Converted EPUBs
-├── .venv/                 # Virtual environment
-├── .cache/                # HuggingFace and matplotlib cache
-├── .pdf_craft_models/     # Cached OCR models
-└── .pdf_craft_work/       # Temporary analysis files
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-This project uses [pdf-craft](https://github.com/oomol-lab/pdf-craft) for PDF processing.
-
-## 🔍 Keywords
-
-academic paper converter, PDF to Markdown, PDF to EPUB, research paper OCR, LaTeX equation preservation, academic document processing, AI PDF converter, scientific paper conversion, Python PDF tool, batch PDF conversion, ACM, IEEE, arXiv, NeurIPS
-
-## 📞 Support
-
-For issues and questions, please open an issue on GitHub.
-
----
-
-**Made with ❤️ for researchers and academics**
+</div>
