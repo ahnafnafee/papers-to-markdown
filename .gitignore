@@ -26,6 +26,7 @@ pip-delete-this-directory.txt
 
 # Virtual Environments
 .venv/
+.venv-*/
 venv/
 ENV/
 env/
@@ -50,6 +51,7 @@ uv.lock
 
 # Output directories
 output/
+tmp/
 
 # Test and Coverage
 htmlcov/
@@ -69,6 +71,7 @@ coverage.xml
 # Environment variables
 .env
 .env.local
+*.har
 
 # Type checking
 .mypy_cache/
@@ -77,5 +80,5 @@ dmypy.json
 .pytype/
 .pyre/
 
-# Input PDFs (optional - uncomment if you don't want to track papers)
-# papers/*.pdf
+# Personal input PDFs (the existing tracked sample stays tracked)
+papers/**/*.pdf
