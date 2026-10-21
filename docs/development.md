@@ -40,6 +40,12 @@ uv run --no-project --with playwright==1.64.0 python -m unittest discover -s tes
 uv run python test_main.py
 ```
 
+The Hub cache regression also exercises the pinned Hugging Face client, with network access replaced by local fixture files:
+
+```powershell
+uv run --no-project --with huggingface-hub==0.36.2 python -m unittest discover -s tests -p test_hub_cache.py -v
+```
+
 These checks use synthetic documents and fixtures. The Kindle suite mocks Amazon and also exercises real HTTP serialization against a loopback server; it sends no books. It covers separate account and upload cookie jars, malformed EPUBs, duplicate protection, uncertain submissions, and local receipt locking.
 
 Reading tests check source provenance, inline notation, safe rendering, cover and contents structure, links, font obfuscation, top-level input selection, duplicate inputs, interrupted receipts, worker failures, and library publication. For actual conversions, supplement them with source-page comparison, rendered-page inspection, and EPUBCheck. Formal package validity does not establish scientific fidelity or physical Kindle appearance.

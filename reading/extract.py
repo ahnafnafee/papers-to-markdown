@@ -5,13 +5,15 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import re
+import sys
 import time
 import unicodedata
 from bisect import bisect_left, bisect_right
 from collections import Counter
 from difflib import SequenceMatcher
-from functools import lru_cache
+from functools import lru_cache, wraps
 from pathlib import Path
+from threading import Lock
 
 from .model import Block, Document, Region, atomic_json, digest, fingerprint, document_assets
 from .source import open_native_pdf
@@ -684,6 +686,26 @@ def cached_document(source_hash: str, cache: Path) -> Document | None:
     return None
 
 
+@lru_cache(maxsize=1)
+def _configure_hub_cache() -> None:
+    """Serialize the pinned Hub client's Windows symlink capability checks."""
+    if sys.platform != "win32":
+        return
+    from huggingface_hub import file_download
+
+    original_check = file_download.are_symlinks_supported
+    lock = Lock()
+
+    @wraps(original_check)
+    def checked(cache_dir=None):
+        # Hub 0.36.2 publishes a provisional True before its probe finishes.
+        # Parallel snapshot downloads can read it and fail with WinError 1314.
+        with lock:
+            return original_check(cache_dir)
+
+    file_download.are_symlinks_supported = checked
+
+
 def prepare_extraction(source: Path, work: Path, *, force: bool = False,
                        ocr: str = "auto", device: str = "auto") -> Path:
     """The only stage that loads inference models; safe to isolate in one process."""
@@ -698,6 +720,7 @@ def prepare_extraction(source: Path, work: Path, *, force: bool = False,
     if not force and raw_path.is_file() and extraction_path.is_file():
         return cache
     else:
+        _configure_hub_cache()
         import pdfplumber
         from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
         from docling.datamodel.base_models import InputFormat

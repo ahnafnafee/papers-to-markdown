@@ -13,6 +13,8 @@ Reading mode produces a single-column PDF and a reflowable EPUB from one shared 
 
 EPUB-only output does not invoke XeLaTeX. Verdana is still used for the cover and document rendering, including when `--no-embed-fonts` leaves the final EPUB's font choice to the reader.
 
+On Windows without symbolic-link privileges, model downloads use ordinary cached files. The reader serializes the Hub client's initial capability checks so parallel downloads can select that fallback reliably. Administrator access and Developer Mode are not required. An interrupted download can be resumed by running the same command again.
+
 ## Convert a paper
 
 ```powershell
